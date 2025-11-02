@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="de">
+  <head>
+    <meta charset="utf-8" />
+    <title>DynHeat – Intelligente Heizungsregelung</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <style>
+      :root {
+        color-scheme: light dark;
+        font-family: "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        background: #0f172a;
+        color: #e2e8f0;
+      }
+      body {
+        margin: 0;
+        padding: 0 1rem 2rem;
+        background: radial-gradient(circle at top, #1e3a8a 0%, #0f172a 55%, #020617 100%);
+        min-height: 100vh;
+      }
+      header {
+        text-align: center;
+        padding: 2rem 0 1rem;
+      }
+      h1 {
+        margin: 0;
+        font-size: clamp(2rem, 5vw, 3rem);
+        font-weight: 700;
+      }
+      main {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+        gap: 1.5rem;
+        max-width: 1200px;
+        margin: 0 auto;
+      }
+      section {
+        background: rgba(15, 23, 42, 0.7);
+        backdrop-filter: blur(16px);
+        border-radius: 18px;
+        padding: 1.5rem;
+        box-shadow: 0 25px 60px rgba(15, 23, 42, 0.45);
+        border: 1px solid rgba(148, 163, 184, 0.1);
+      }
+      h2 {
+        margin-top: 0;
+        font-size: 1.3rem;
+        font-weight: 600;
+        letter-spacing: 0.01em;
+      }
+      .status-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+        gap: 1rem;
+        margin-top: 1rem;
+      }
+      .status-card {
+        background: rgba(30, 41, 59, 0.6);
+        padding: 1rem;
+        border-radius: 14px;
+        text-align: center;
+        border: 1px solid rgba(148, 163, 184, 0.08);
+      }
+      .status-card span {
+        display: block;
+        font-size: 0.8rem;
+        color: #94a3b8;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        margin-bottom: 0.4rem;
+      }
+      .status-card strong {
+        font-size: 1.6rem;
+        font-weight: 600;
+      }
+      form {
+        display: grid;
+        gap: 1rem;
+      }
+      label {
+        display: flex;
+        flex-direction: column;
+        gap: 0.4rem;
+        font-size: 0.9rem;
+        color: #cbd5f5;
+      }
+      input,
+      select,
+      button {
+        border-radius: 12px;
+        border: 1px solid rgba(148, 163, 184, 0.2);
+        padding: 0.65rem 0.9rem;
+        font-size: 1rem;
+        font-family: inherit;
+        color: inherit;
+        background: rgba(15, 23, 42, 0.8);
+        transition: transform 0.2s ease, border 0.2s ease, box-shadow 0.2s ease;
+      }
+      input:focus,
+      button:focus {
+        outline: none;
+        border-color: #38bdf8;
+        box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.2);
+      }
+      button {
+        cursor: pointer;
+        background: linear-gradient(135deg, #38bdf8, #0ea5e9);
+        color: #0f172a;
+        font-weight: 600;
+        border: none;
+      }
+      button:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 12px 30px rgba(14, 165, 233, 0.35);
+      }
+      ul {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 0.6rem;
+      }
+      li {
+        padding: 0.65rem 0.85rem;
+        border-radius: 12px;
+        background: rgba(30, 41, 59, 0.55);
+        border: 1px solid rgba(148, 163, 184, 0.12);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+      .timestamp {
+        font-size: 0.8rem;
+        color: #94a3b8;
+        margin-top: 0.5rem;
+      }
+      .errors {
+        margin-top: 1rem;
+        padding: 0.75rem;
+        border-radius: 12px;
+        background: rgba(239, 68, 68, 0.12);
+        border: 1px solid rgba(248, 113, 113, 0.35);
+        color: #fecaca;
+      }
+      .success {
+        color: #bef264;
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>DynHeat</h1>
+      <p>Adaptive Heizungsregelung mit Sensorfusion, Wetterprognose und smarter Ausgabe</p>
+    </header>
+    <main>
+      <section id="status">
+        <h2>Aktueller Status</h2>
+        <div class="status-grid">
+          <div class="status-card">
+            <span>Vorlauf</span>
+            <strong id="flow-temp">–</strong>
+          </div>
+          <div class="status-card">
+            <span>Leistung</span>
+            <strong id="power">–</strong>
+          </div>
+          <div class="status-card">
+            <span>Außentemperatur</span>
+            <strong id="outside">–</strong>
+          </div>
+          <div class="status-card">
+            <span>Innen</span>
+            <strong id="indoor">–</strong>
+          </div>
+          <div class="status-card">
+            <span>Lux</span>
+            <strong id="lux">–</strong>
+          </div>
+        </div>
+        <p class="timestamp" id="updated">Noch keine Daten.</p>
+        <div class="errors" id="errors" hidden></div>
+        <button type="button" id="trigger">Regelung jetzt ausführen</button>
+      </section>
+
+      <section>
+        <h2>Konfiguration</h2>
+        <form id="config-form">
+          <label>
+            Komforttemperatur (°C)
+            <input type="number" step="0.1" name="comfort_temperature" required />
+          </label>
+          <label>
+            Absenktemperatur (°C)
+            <input type="number" step="0.1" name="setback_temperature" required />
+          </label>
+          <label>
+            Heizkurven-Steilheit
+            <input type="number" step="0.1" name="heating_curve_slope" required />
+          </label>
+          <label>
+            Heizkurven-Basis (°C)
+            <input type="number" step="0.1" name="heating_curve_base" required />
+          </label>
+          <label>
+            Regelhäufigkeit pro Tag
+            <input type="number" min="1" max="96" name="control_runs_per_day" required />
+          </label>
+          <label>
+            Lux-Referenz
+            <input type="number" step="1" name="lux_reference" required />
+          </label>
+          <label>
+            Lux-Einfluss
+            <input type="number" step="0.1" name="lux_influence" required />
+          </label>
+          <label>
+            Ausgang Minimum
+            <input type="number" step="0.05" min="0" max="1" name="output_min" required />
+          </label>
+          <label>
+            Ausgang Maximum
+            <input type="number" step="0.05" min="0" max="1" name="output_max" required />
+          </label>
+          <button type="submit">Einstellungen speichern</button>
+          <p class="timestamp" id="config-feedback"></p>
+        </form>
+      </section>
+
+      <section>
+        <h2>Sensoren</h2>
+        <ul id="sensor-list"></ul>
+      </section>
+
+      <section>
+        <h2>Aktoren</h2>
+        <ul id="output-list"></ul>
+      </section>
+    </main>
+
+    <script>
+      const fmt = (value, unit = "") => (value === null || value === undefined ? "–" : `${value}${unit}`);
+
+      async function loadStatus() {
+        const response = await fetch("/api/status");
+        const data = await response.json();
+        if (data.command) {
+          document.getElementById("flow-temp").textContent = fmt(data.command.flow_temperature.toFixed(1), "°C");
+          document.getElementById("power").textContent = fmt(Math.round(data.command.power_level * 100), "%");
+          document.getElementById("updated").textContent = `Letzte Regelung: ${new Date(data.command.timestamp).toLocaleString()}`;
+        }
+        if (data.snapshot) {
+          document.getElementById("outside").textContent = fmt(data.snapshot.outside_temperature?.toFixed(1), "°C");
+          document.getElementById("indoor").textContent = fmt(data.snapshot.indoor_temperature?.toFixed(1), "°C");
+          document.getElementById("lux").textContent = fmt(data.snapshot.lux?.toFixed(0));
+        }
+        const errors = document.getElementById("errors");
+        if (data.errors && data.errors.length > 0) {
+          errors.hidden = false;
+          errors.textContent = data.errors.join("\n");
+        } else {
+          errors.hidden = true;
+        }
+      }
+
+      async function loadConfig() {
+        const response = await fetch("/api/config");
+        const config = await response.json();
+        const form = document.getElementById("config-form");
+        for (const [key, value] of Object.entries(config)) {
+          const field = form.elements.namedItem(key);
+          if (field) field.value = value;
+        }
+      }
+
+      async function loadLists() {
+        const sensors = await (await fetch("/api/sensors")).json();
+        const outputs = await (await fetch("/api/outputs")).json();
+        const sensorList = document.getElementById("sensor-list");
+        sensorList.innerHTML = sensors.sensors.map((s) => `<li><span>${s}</span></li>`).join("");
+        const outputList = document.getElementById("output-list");
+        outputList.innerHTML = outputs.outputs.map((o) => `<li><span>${o}</span></li>`).join("");
+      }
+
+      document.getElementById("config-form").addEventListener("submit", async (event) => {
+        event.preventDefault();
+        const form = event.target;
+        const payload = Object.fromEntries(new FormData(form).entries());
+        for (const key of ["comfort_temperature", "setback_temperature", "heating_curve_slope", "heating_curve_base", "lux_reference", "lux_influence", "output_min", "output_max"]) {
+          payload[key] = parseFloat(payload[key]);
+        }
+        payload.control_runs_per_day = parseInt(payload.control_runs_per_day, 10);
+
+        const response = await fetch("/api/config", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+
+        const feedback = document.getElementById("config-feedback");
+        if (response.ok) {
+          feedback.textContent = "Einstellungen übernommen.";
+          feedback.className = "timestamp success";
+          loadStatus();
+        } else {
+          const text = await response.text();
+          feedback.textContent = `Fehler: ${text}`;
+          feedback.className = "timestamp";
+        }
+      });
+
+      document.getElementById("trigger").addEventListener("click", async () => {
+        const response = await fetch("/api/trigger", { method: "POST" });
+        const feedback = document.getElementById("config-feedback");
+        if (response.ok) {
+          feedback.textContent = "Regelung ausgeführt.";
+          feedback.className = "timestamp success";
+          loadStatus();
+        } else {
+          feedback.textContent = "Regelung fehlgeschlagen.";
+          feedback.className = "timestamp";
+        }
+      });
+
+      loadStatus();
+      loadConfig();
+      loadLists();
+      setInterval(loadStatus, 60000);
+    </script>
+  </body>
+</html>
